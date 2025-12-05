@@ -1,0 +1,68 @@
+body { margin: 0; overflow: hidden; background-color: #1a1a1a; }
+        
+        #ui {
+            position: absolute; 
+            top: 20px; 
+            left: 20px; 
+            color: white;
+            font-family: 'Courier New', Courier, monospace;
+            background: rgba(0, 0, 0, 0.9); 
+            padding: 15px; 
+            border-radius: 10px; 
+            width: 300px; /* Başlangıç genişliği */
+            box-shadow: 0 0 20px rgba(0,0,0,0.5); 
+            border: 2px solid #ffd700; 
+            
+            /* --- YENİ EKLENEN ÖZELLİKLER (RESIZE) --- */
+            resize: both;       /* Hem enine hem boyuna boyutlandırma */
+            overflow: auto;     /* Resize için zorunlu */
+            min-width: 200px;   /* Çok küçülüp kaybolmasın */
+            min-height: 150px;
+            max-width: 600px;   /* Çok büyüyüp ekranı kaplamasın */
+            
+            /* Kullanıcı artık panelin kendisine tıklayabilsin (sürüklemek için) */
+            pointer-events: auto; 
+            user-select: none; /* Sürüklerken yazılar seçilmesin */
+        }
+        #ui * { pointer-events: auto; }
+
+        h2 { 
+            margin-top: 0; 
+            color: #ffd700; 
+            text-align: center; 
+            text-shadow: 2px 2px 0px #000;
+            
+            /* Tutamaç olduğunu belli et */
+            cursor: move; 
+            padding: 5px;
+            background: rgba(255, 255, 255, 0.1); /* Hafif belli olsun */
+            border-radius: 5px;
+        }   
+        .stat-box { background: #333; padding: 10px; margin: 10px 0; border-radius: 5px; font-size: 14px; }
+        
+        .btn {
+            background: linear-gradient(to bottom, #4CAF50, #2E7D32);
+            color: white; padding: 10px; margin-top: 5px;
+            cursor: pointer; border: none; width: 100%; border-radius: 5px;
+            font-weight: bold; font-size: 14px; transition: transform 0.1s; display: block;
+        }
+        .btn:active { transform: scale(0.95); }
+        .btn-danger { background: linear-gradient(to bottom, #d32f2f, #b71c1c); }
+        .btn-info { background: linear-gradient(to bottom, #1976D2, #0D47A1); }
+        .btn-warning { background: linear-gradient(to bottom, #FF9800, #F57C00); color: black; }
+        .btn-purple { background: linear-gradient(to bottom, #9C27B0, #7B1FA2); }
+        .btn-gray { background: linear-gradient(to bottom, #757575, #424242); margin-top: 15px; border: 1px solid #aaa; }
+
+        /* Konuşma Balonu Stili */
+        #bubble {
+            position: absolute; display: none;
+            background: white; color: black; padding: 10px; border-radius: 15px;
+            font-family: sans-serif; font-weight: bold; font-size: 12px;
+            pointer-events: none; border: 2px solid black;
+            transform: translate(-50%, -100%); z-index: 100;
+        }
+        #bubble::after { 
+            content: ''; position: absolute; bottom: -10px; left: 50%;
+            border-width: 10px 10px 0; border-style: solid;
+            border-color: white transparent; display: block; width: 0; margin-left: -10px;
+        }

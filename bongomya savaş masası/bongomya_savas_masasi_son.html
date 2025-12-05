@@ -3,49 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>Bongomya: Chaos Edition</title>
-    <style>
-        body { margin: 0; overflow: hidden; background-color: #1a1a1a; }
-        
-        #ui {
-            position: absolute; top: 20px; left: 20px; color: white;
-            font-family: 'Courier New', Courier, monospace;
-            background: rgba(0, 0, 0, 0.9); 
-            padding: 20px; border-radius: 10px; width: 340px;
-            box-shadow: 0 0 20px rgba(0,0,0,0.5); border: 2px solid #ffd700;
-            user-select: none; pointer-events: none;
-        }
-        #ui * { pointer-events: auto; }
-
-        h2 { margin-top: 0; color: #ffd700; text-align: center; text-shadow: 2px 2px 0px #000; }
-        .stat-box { background: #333; padding: 10px; margin: 10px 0; border-radius: 5px; font-size: 14px; }
-        
-        .btn {
-            background: linear-gradient(to bottom, #4CAF50, #2E7D32);
-            color: white; padding: 10px; margin-top: 5px;
-            cursor: pointer; border: none; width: 100%; border-radius: 5px;
-            font-weight: bold; font-size: 14px; transition: transform 0.1s; display: block;
-        }
-        .btn:active { transform: scale(0.95); }
-        .btn-danger { background: linear-gradient(to bottom, #d32f2f, #b71c1c); }
-        .btn-info { background: linear-gradient(to bottom, #1976D2, #0D47A1); }
-        .btn-warning { background: linear-gradient(to bottom, #FF9800, #F57C00); color: black; }
-        .btn-purple { background: linear-gradient(to bottom, #9C27B0, #7B1FA2); }
-        .btn-gray { background: linear-gradient(to bottom, #757575, #424242); margin-top: 15px; border: 1px solid #aaa; }
-
-        /* Konuşma Balonu Stili */
-        #bubble {
-            position: absolute; display: none;
-            background: white; color: black; padding: 10px; border-radius: 15px;
-            font-family: sans-serif; font-weight: bold; font-size: 12px;
-            pointer-events: none; border: 2px solid black;
-            transform: translate(-50%, -100%); z-index: 100;
-        }
-        #bubble::after { 
-            content: ''; position: absolute; bottom: -10px; left: 50%;
-            border-width: 10px 10px 0; border-style: solid;
-            border-color: white transparent; display: block; width: 0; margin-left: -10px;
-        }
-    </style>
+    <link rel="stylesheet" href="style.css">
     
     <script type="importmap">
       {
@@ -256,8 +214,8 @@
 
         const quotes = {
             "Prens": ["Acıktım...", "Larg nerede?", "Olaylar olaylar..."],
-            "Haşerya": ["Saksonya güzel diyorlar...", "Babam yine ne yapıyor?"],
-            "Dük Philippe": ["Saksonya'nın onuru!", "Bongomya nerede?"],
+            "Haşerya": ["Saksonya güzel diyorlar...", "Abim yine ne yapıyor?"],
+            "Dük Philippe": ["Saksonya'nın onuru!", "Bongomya nerede?","Her şey aşk içim!!"],
             "Macar Prensi": ["SAVAŞ!", "Larg verin gideyim.", "Gücüm: 100"],
             "Kaleş": ["Yeğenim halledeceğim...", "Bir kumarım var...", "Rahat ol sen."],
             "Bongomya": "Güzel ve yalnız ülkemiz...",
@@ -479,6 +437,46 @@
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // --- UI SÜRÜKLEME SİSTEMİ (DRAG & DROP) ---
+        const uiPanel = document.getElementById('ui');
+        const uiHeader = uiPanel.querySelector('h2'); // Tutamaç olarak başlığı kullanıyoruz
+
+        let isDragging = false;
+        let dragOffsetX = 0;
+        let dragOffsetY = 0;
+
+        // 1. Tutmaya Başla
+        uiHeader.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            // Mouse'un panelin sol üst köşesine olan uzaklığını kaydet
+            dragOffsetX = e.clientX - uiPanel.offsetLeft;
+            dragOffsetY = e.clientY - uiPanel.offsetTop;
+            
+            uiHeader.style.cursor = 'grabbing'; // İmleci sıkılı yumruk yap
+        });
+
+        // 2. Sürükle (Tüm pencerede dinliyoruz ki hızlı çekince kaçmasın)
+        window.addEventListener('mousemove', (e) => {
+            if (isDragging) {
+                // Yeni pozisyonu hesapla
+                let newX = e.clientX - dragOffsetX;
+                let newY = e.clientY - dragOffsetY;
+
+                // Ekran dışına çıkmayı engelle (Opsiyonel Güvenlik)
+                // newX = Math.max(0, Math.min(window.innerWidth - uiPanel.offsetWidth, newX));
+                // newY = Math.max(0, Math.min(window.innerHeight - uiPanel.offsetHeight, newY));
+
+                uiPanel.style.left = `${newX}px`;
+                uiPanel.style.top = `${newY}px`;
+            }
+        });
+
+        // 3. Bırak
+        window.addEventListener('mouseup', () => {
+            isDragging = false;
+            uiHeader.style.cursor = 'move'; // İmleci normale döndür
         });
     </script>
 </body>
