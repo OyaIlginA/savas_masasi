@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <title>Bongomya: Chaos Edition</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #1a1a1a; }
+        
+        #ui {
+            position: absolute; top: 20px; left: 20px; color: white;
+            font-family: 'Courier New', Courier, monospace;
+            background: rgba(0, 0, 0, 0.9); 
+            padding: 20px; border-radius: 10px; width: 340px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5); border: 2px solid #ffd700;
+            user-select: none; pointer-events: none;
+        }
+        #ui * { pointer-events: auto; }
+
+        h2 { margin-top: 0; color: #ffd700; text-align: center; text-shadow: 2px 2px 0px #000; }
+        .stat-box { background: #333; padding: 10px; margin: 10px 0; border-radius: 5px; font-size: 14px; }
+        
+        .btn {
+            background: linear-gradient(to bottom, #4CAF50, #2E7D32);
+            color: white; padding: 10px; margin-top: 5px;
+            cursor: pointer; border: none; width: 100%; border-radius: 5px;
+            font-weight: bold; font-size: 14px; transition: transform 0.1s; display: block;
+        }
+        .btn:active { transform: scale(0.95); }
+        .btn-danger { background: linear-gradient(to bottom, #d32f2f, #b71c1c); }
+        .btn-info { background: linear-gradient(to bottom, #1976D2, #0D47A1); }
+        .btn-warning { background: linear-gradient(to bottom, #FF9800, #F57C00); color: black; }
+        .btn-purple { background: linear-gradient(to bottom, #9C27B0, #7B1FA2); }
+        .btn-gray { background: linear-gradient(to bottom, #757575, #424242); margin-top: 15px; border: 1px solid #aaa; }
+
+        /* Konuşma Balonu Stili */
+        #bubble {
+            position: absolute; display: none;
+            background: white; color: black; padding: 10px; border-radius: 15px;
+            font-family: sans-serif; font-weight: bold; font-size: 12px;
+            pointer-events: none; border: 2px solid black;
+            transform: translate(-50%, -100%); z-index: 100;
+        }
+        #bubble::after { 
+            content: ''; position: absolute; bottom: -10px; left: 50%;
+            border-width: 10px 10px 0; border-style: solid;
+            border-color: white transparent; display: block; width: 0; margin-left: -10px;
+        }
+    </style>
+    
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+          "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+        }
+      }
+    </script>
+</head>
+<body>
+    <div id="bubble">Konuşma Balonu</div>
+    <div id="ui">
+        <h2>⚜️ BONGOMYA ⚜️</h2>
+        <div class="stat-box">
+            <p id="info" style="color: #ffcc00;">Durum: Olaylar Olaylar... Karar anı!</p>
+            <hr style="border-color: #555;">
+            <div id="stats">Larg: 0 💰 | Güç: 10 💪</div>
+        </div>
+        
+        <button id="btnMarry" class="btn btn-info">💍 Haşerya'yı Evlendir (Diplomasi)</button>
+        <button id="btnDayi" class="btn btn-purple">🎲 Kaleş'i Yolla (%50 Şans)</button>
+        <button id="btnMoney" class="btn btn-warning">💰 Eşyaları Sat (+250 Larg)</button>
+        <button id="btnBribe" class="btn btn-warning" style="display:none;">💸 Macarlara Rüşvet Ver (500 Larg)</button>
+        <button id="btnAttack" class="btn btn-danger">⚔️ Topyekün Saldırı</button>
+        
+        <button id="btnRestart" class="btn btn-gray">🔄 OYUNU SIFIRLA</button>
+
+        <p style="font-size: 11px; color: #aaa; text-align: center; margin-top: 10px;">
+            ℹ️ İPUCU: Karakterlere tıklayarak ne düşündüklerini gör!
+        </p>
+    </div>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+        // --- 1. SAHNE KURULUMU ---
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x111111);
+        scene.fog = new THREE.Fog(0x111111, 20, 100);
+
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 35, 45); 
+        camera.lookAt(0, 0, 0);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        document.body.appendChild(renderer.domElement);
+
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        scene.add(ambientLight);
+        const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+        dirLight.position.set(10, 20, 10);
+        dirLight.castShadow = true;
+        dirLight.shadow.mapSize.width = 2048; 
+        dirLight.shadow.mapSize.height = 2048; 
+        scene.add(dirLight);
+
+        // --- 2. VARLIKLAR ---
+        const textureLoader = new THREE.TextureLoader();
+        const gltfLoader = new GLTFLoader();
+        
+        const woodTexture = textureLoader.load('textures/wood_table.jpg');
+        const paperTexture = textureLoader.load('textures/paper_map.jpg');
+        const bongomyaLogo = textureLoader.load('textures/bongomya_flag.jpg');
+
+        // Partikül Sistemi
+        const particles = [];
+        function createParticleEffect(type, position) {
+            const particleCount = 20;
+            const geometry = new THREE.SphereGeometry(0.2, 4, 4);
+            const color = type === 'heart' ? 0xff69b4 : (type === 'money' ? 0xffd700 : 0xff4500);
+            const material = new THREE.MeshBasicMaterial({ color: color });
+
+            for (let i = 0; i < particleCount; i++) {
+                const mesh = new THREE.Mesh(geometry, material);
+                const worldPos = new THREE.Vector3();
+                position.getWorldPosition(worldPos);
+                mesh.position.copy(worldPos);
+                
+                mesh.userData = {
+                    velocity: new THREE.Vector3((Math.random()-0.5)*0.5, Math.random()*0.5, (Math.random()-0.5)*0.5),
+                    life: 1.0
+                };
+                scene.add(mesh);
+                particles.push(mesh);
+            }
+        }
+
+        // Zemin
+        const table = new THREE.Mesh(new THREE.PlaneGeometry(100, 100), new THREE.MeshStandardMaterial({ map: woodTexture, color: 0x5c4033 }));
+        table.rotation.x = -Math.PI / 2; table.position.y = -0.5; table.receiveShadow = true;
+        scene.add(table);
+
+        // Etiket
+        function createLabel(text, yOffset, size = 1) {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = 300; canvas.height = 150;
+            ctx.font = 'Bold 40px Courier New';
+            ctx.fillStyle = 'white'; ctx.textAlign = 'center';
+            ctx.strokeStyle = 'black'; ctx.lineWidth = 5;
+            ctx.strokeText(text, 150, 75); ctx.fillText(text, 150, 75);
+            const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(canvas) }));
+            sprite.scale.set(6 * size, 3 * size, 1);
+            sprite.position.y = yOffset;
+            return sprite;
+        }
+
+        // Ülke Oluşturma
+        function createCountry(name, textureMap, colorHex, xPos) {
+            const geometry = new THREE.BoxGeometry(10, 0.5, 10);
+            const material = new THREE.MeshStandardMaterial({ map: textureMap, color: colorHex, roughness: 1.0 });
+            const country = new THREE.Mesh(geometry, material);
+            country.position.set(xPos, 0, 0);
+            country.castShadow = true; country.receiveShadow = true;
+            country.add(new THREE.LineSegments(new THREE.EdgesGeometry(geometry), new THREE.LineBasicMaterial({ color: 0x000000 })));
+            country.add(createLabel(name.toUpperCase(), 3, 1.5));
+            country.userData = { name: name, type: 'country' };
+            scene.add(country);
+            return country;
+        }
+
+        const saksonya = createCountry("Saksonya", paperTexture, 0x8888ff, -12);
+        const bongomya = createCountry("Bongomya", bongomyaLogo, 0xffffff, 0);
+        const macaristan = createCountry("Macaristan", paperTexture, 0xff8888, 12);
+
+        // Karakter Oluşturma
+        const interactableObjects = []; 
+
+        function createCharacter(name, color, parentCountry, offsetZ, offsetX = 0, modelPath = null, scaleValue = 0.5, yOffset = 0) {
+            const group = new THREE.Group();
+            group.add(createLabel(name, 3.5, 0.5)); 
+
+            if (modelPath) {
+                gltfLoader.load(`models/${modelPath}`, (gltf) => {
+                    const model = gltf.scene;
+                    const s = scaleValue ? scaleValue : 0.5;
+                    model.scale.set(s, s, s);
+                    model.position.y = yOffset; 
+                    model.traverse((node) => { 
+                        if (node.isMesh) {
+                            node.castShadow = true; node.material.side = THREE.DoubleSide;
+                            node.userData = { parentGroup: group };
+                        }
+                    });
+                    group.add(model);
+                });
+            } else {
+                const cyl = new THREE.Mesh(new THREE.CylinderGeometry(0.3,0.5,1.5), new THREE.MeshStandardMaterial({color:color}));
+                cyl.position.y = 0.75;
+                cyl.userData = { parentGroup: group };
+                group.add(cyl);
+            }
+
+            // Başlangıç pozisyonlarını kaydedelim (Restart için)
+            group.userData = { 
+                name: name, 
+                type: 'character',
+                startParent: parentCountry,
+                startX: offsetX,
+                startZ: offsetZ
+            };
+            
+            group.position.set(offsetX, 0.25, offsetZ);
+            parentCountry.add(group);
+            
+            interactableObjects.push(group); 
+            return group;
+        }
+
+        // --- KARAKTERLER ---
+        const prens = createCharacter("Prens", 0xffd700, bongomya, 0, 0, 'prens.glb', 0.7, 1.5); 
+        const haserya = createCharacter("Haşerya", 0xff69b4, bongomya, -2, 0, 'haserya.glb');
+        const dukuPhilippe = createCharacter("Dük Philippe", 0x0000aa, saksonya, 0, 0, 'philippe.glb', 0.2, 0);
+        const macarPrensi = createCharacter("Macar Prensi", 0x880000, macaristan, 0, 0, 'macarkrali.glb', 1.25, 0);
+        const kalesh = createCharacter("Kaleş", 0x555555, bongomya, 2, 0, 'kalesh.glb', 1.25, 0);
+
+        // --- 3. RAYCASTING ---
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+        const bubble = document.getElementById('bubble');
+
+        window.addEventListener('pointerdown', (event) => {
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(scene.children, true);
+
+            if (intersects.length > 0) {
+                let object = intersects[0].object;
+                if (object.userData.parentGroup) object = object.userData.parentGroup;
+                else if (object.parent && object.parent.userData.type === 'character') object = object.parent;
+
+                if (object.userData.type === 'character') {
+                    showBubble(object.userData.name, event.clientX, event.clientY);
+                } else if (object.userData.type === 'country') {
+                    showBubble(object.userData.name + " Toprakları", event.clientX, event.clientY);
+                } else {
+                    bubble.style.display = 'none';
+                }
+            }
+        });
+
+        const quotes = {
+            "Prens": ["Acıktım...", "Larg nerede?", "Olaylar olaylar..."],
+            "Haşerya": ["Saksonya güzel diyorlar...", "Babam yine ne yapıyor?"],
+            "Dük Philippe": ["Saksonya'nın onuru!", "Bongomya nerede?"],
+            "Macar Prensi": ["SAVAŞ!", "Larg verin gideyim.", "Gücüm: 100"],
+            "Kaleş": ["Yeğenim halledeceğim...", "Bir kumarım var...", "Rahat ol sen."],
+            "Bongomya": "Güzel ve yalnız ülkemiz...",
+            "Saksonya": "Müttefik olabilirler mi?",
+            "Macaristan": "Çok tehlikeli bölge!"
+        };
+
+        function showBubble(name, x, y) {
+            let text = name;
+            if (quotes[name]) {
+                const list = Array.isArray(quotes[name]) ? quotes[name] : [quotes[name]];
+                text = list[Math.floor(Math.random() * list.length)];
+            }
+            bubble.innerText = `${name}: "${text}"`;
+            bubble.style.left = x + 'px';
+            bubble.style.top = (y - 20) + 'px';
+            bubble.style.display = 'block';
+            setTimeout(() => { bubble.style.display = 'none'; }, 3000);
+        }
+
+        // --- 4. OYUN MANTIĞI & UI ---
+        const btnMarry = document.getElementById('btnMarry');
+        const btnDayi = document.getElementById('btnDayi');
+        const btnMoney = document.getElementById('btnMoney');
+        const btnBribe = document.getElementById('btnBribe');
+        const btnAttack = document.getElementById('btnAttack');
+        const btnRestart = document.getElementById('btnRestart');
+        const infoText = document.getElementById('info');
+        const statsText = document.getElementById('stats');
+
+        let gameState = {
+            larg: 0,
+            power: 10,
+            ally: false
+        };
+
+        function updateUI() {
+            statsText.innerText = `Larg: ${gameState.larg} 💰 | Güç: ${gameState.power} 💪`;
+            btnBribe.style.display = gameState.larg >= 500 ? "block" : "none";
+        }
+
+        // 1. PARA KAZANMA
+        btnMoney.addEventListener('click', () => {
+            gameState.larg += 250;
+            createParticleEffect('money', prens);
+            infoText.innerText = "Prens saraydaki gümüşleri sattı! (+250 Larg)";
+            infoText.style.color = "#FFD700";
+            updateUI();
+        });
+
+        // 2. EVLİLİK
+        btnMarry.addEventListener('click', () => {
+            if (!gameState.ally) {
+                createParticleEffect('heart', haserya);
+                // Scene Graph: Haşerya taraf değiştiriyor
+                bongomya.remove(haserya);
+                saksonya.add(haserya);
+                haserya.position.set(2, 0.25, 0); 
+                
+                gameState.ally = true;
+                saksonya.material.color.set(0x00ffaa); 
+                infoText.innerText = "Haşerya gitti, Saksonya artık dostumuz!";
+                infoText.style.color = "#4CAF50";
+                
+                setTimeout(() => {
+                    gameState.power = 110; 
+                    infoText.innerText += " (Prens gaza geldi!)";
+                    prens.scale.multiplyScalar(1.2);
+                    updateUI();
+                }, 1000);
+                
+                btnMarry.disabled = true;
+                btnMarry.style.background = "#555";
+                updateUI();
+            }
+        });
+
+        // 3. KALEŞ (AMCA) GÖNDERME - ANİMASYONLU
+        btnDayi.addEventListener('click', () => {
+            infoText.innerText = "Kaleş yola çıktı... Macaristan'a gidiyor...";
+            btnDayi.disabled = true;
+            
+            // Yürüme bayrağını aç
+            kalesh.userData.isWalking = true;
+        });
+
+        // 4. RÜŞVET
+        btnBribe.addEventListener('click', () => {
+            if (gameState.larg >= 500) {
+                gameState.larg -= 500;
+                infoText.innerText = "Macarlar parayı aldı ve çekildi! (ZAFER)";
+                infoText.style.color = "#FFD700";
+                createParticleEffect('money', macarPrensi);
+                macaristan.material.color.set(0x00ff00); 
+                macarPrensi.visible = false; 
+                updateUI();
+            }
+        });
+
+        // 5. SALDIRI
+        btnAttack.addEventListener('click', () => {
+            if (gameState.power >= 100) {
+                createParticleEffect('explosion', macarPrensi);
+                infoText.innerText = "ZAFER! Bongomya ordusu kazandı!";
+                infoText.style.color = "#4CAF50";
+                macaristan.material.color.set(0x444444); 
+                macarPrensi.visible = false;
+                prens.scale.set(1.4, 1.4, 1.4);
+            } else {
+                createParticleEffect('explosion', prens);
+                infoText.innerText = "HÜSRAN... Gücümüz yetmedi.";
+                infoText.style.color = "#f44336";
+                bongomya.material.color.set(0xff0000); 
+                prens.visible = false; 
+            }
+        });
+
+        // 6. RESTART (SIFIRLAMA)
+        btnRestart.addEventListener('click', () => {
+            // Değişkenleri sıfırla
+            gameState = { larg: 0, power: 10, ally: false };
+            
+            // Renkleri sıfırla
+            bongomya.material.color.set(0xffffff);
+            saksonya.material.color.set(0x8888ff);
+            macaristan.material.color.set(0xff8888);
+
+            // Butonları sıfırla
+            btnMarry.disabled = false; btnMarry.style.background = "linear-gradient(to bottom, #1976D2, #0D47A1)";
+            btnDayi.disabled = false;
+            
+            // Metinleri sıfırla
+            infoText.innerText = "Durum: Olaylar Olaylar... Yeniden Başladık.";
+            infoText.style.color = "#ffcc00";
+            updateUI();
+
+            // Karakterleri Sıfırla (Scene Graph ve Pozisyon)
+            [prens, haserya, kalesh, macarPrensi].forEach(char => {
+                char.visible = true; // Ölenler dirilsin
+                char.scale.set(1,1,1); // Büyüyenler küçülsün
+                // Eğer model yüklüyse tekrar scale ayarla (basit reset için 1 yaptık ama gltf scale'i önemli)
+                // Daha düzgün olması için manuel scale girmek lazım ama şimdilik visible yeterli.
+                
+                // Parent Reset (Özellikle Haşerya için)
+                if (char.parent !== char.userData.startParent) {
+                    char.parent.remove(char);
+                    char.userData.startParent.add(char);
+                }
+                
+                // Pozisyon Reset
+                char.position.set(char.userData.startX, 0.25, char.userData.startZ);
+            });
+            
+            // Kaleş'in özel ayarları
+            kalesh.userData.isWalking = false;
+            
+            // Prens'in özel scale'ini geri getir (Manuel)
+            if(prens.children.length > 1) prens.children[1].scale.set(0.7,0.7,0.7); 
+
+        });
+
+
+        // --- 5. RENDER DÖNGÜSÜ ---
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true; 
+
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            // KALEŞ YÜRÜME MANTIĞI (ANIMATION LOOP)
+            // Macaristan x=12'de. Kaleş x=2'den başlıyor.
+            if (kalesh.userData.isWalking) {
+                kalesh.position.x += 0.05; // Sağa doğru yürü
+                // Yürürken zıplasın (Visual Feedback)
+                kalesh.position.y = Math.abs(Math.sin(Date.now() * 0.01)) * 0.5;
+
+                // Hedefe vardı mı? (Macaristan sınırına yaklaşınca)
+                if (kalesh.position.x >= 10) {
+                    kalesh.userData.isWalking = false; // Dur
+                    kalesh.position.y = 0.25; // Yere bas
+
+                    // Olay Sonucunu Hesapla
+                    const sans = Math.random();
+                    if (sans > 0.5) {
+                        infoText.innerText = "İNANILMAZ! Kaleş Macar Kralını zehirledi! (ZAFER)";
+                        infoText.style.color = "#4CAF50";
+                        macaristan.material.color.set(0x444444);
+                        macarPrensi.visible = false;
+                        createParticleEffect('explosion', macarPrensi);
+                    } else {
+                        infoText.innerText = "EYVAH! Kaleş yakalandı. Savaş başladı!";
+                        infoText.style.color = "#f44336";
+                        macaristan.material.color.set(0xff0000);
+                        kalesh.visible = false; // Kaleş öldü
+                        createParticleEffect('explosion', kalesh);
+                    }
+                }
+            }
+
+            // Partiküller
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const p = particles[i];
+                p.position.add(p.userData.velocity);
+                p.userData.life -= 0.02; 
+                p.material.opacity = p.userData.life; 
+                p.material.transparent = true;
+                if (p.userData.life <= 0) {
+                    scene.remove(p);
+                    particles.splice(i, 1);
+                }
+            }
+
+            controls.update();
+            renderer.render(scene, camera);
+        }
+        animate();
+        
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,331 @@
+<!DOCTYPE html> 
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <title>Bongomya Savaş Masası</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #1a1a1a; }
+        
+        #ui {
+            position: absolute; top: 20px; left: 20px; color: white;
+            font-family: 'Courier New', Courier, monospace;
+            background: rgba(0, 0, 0, 0.9); 
+            padding: 20px; border-radius: 10px; width: 340px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5); border: 2px solid #ffd700;
+            user-select: none; pointer-events: none; /* Tıklamalar alttaki tuşlara geçsin */
+        }
+        /* UI içindeki butonların tıklanabilir olması için */
+        #ui * { pointer-events: auto; }
+
+        h2 { margin-top: 0; color: #ffd700; text-align: center; text-shadow: 2px 2px 0px #000; }
+        .stat-box { background: #333; padding: 10px; margin: 10px 0; border-radius: 5px; font-size: 14px; }
+        
+        .btn {
+            background: linear-gradient(to bottom, #4CAF50, #2E7D32);
+            color: white; padding: 12px 15px; margin-top: 8px;
+            cursor: pointer; border: none; width: 100%; border-radius: 5px;
+            font-weight: bold; font-size: 15px; transition: transform 0.1s;
+        }
+        .btn:active { transform: scale(0.95); }
+        .btn-danger { background: linear-gradient(to bottom, #d32f2f, #b71c1c); }
+        .btn-info { background: linear-gradient(to bottom, #1976D2, #0D47A1); }
+        
+        /* Loading Bar */
+        #loader {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            color: #ffd700; font-family: sans-serif; font-size: 24px; display: none;
+        }
+    </style>
+    
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+          "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+        }
+      }
+    </script>
+</head>
+<body>
+    <div id="loader">BONGOMYA YÜKLENİYOR...</div>
+    <div id="ui">
+        <h2>⚜️ BONGOMYA ⚜️</h2>
+        <div class="stat-box">
+            <p id="info" style="color: #ffcc00;">Durum: Olaylar olaylar... Macarlar Kapıya Dayandı!</p>
+            <hr style="border-color: #555;">
+            <p><strong>Güç Dengesi:</strong></p>
+            <div id="stats">Bongomya: 10 | Macarlar: 100</div>
+        </div>
+        
+        <button id="btnMarry" class="btn btn-info">💍 Haşerya'yı Saksonya'ya Ver</button>
+        <button id="btnAttack" class="btn btn-danger">⚔️ Macaristan'a Saldır</button>
+    </div>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'; // SİHİRLİ SATIR
+
+        // --- 1. SAHNE VE KAMERA ---
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x111111);
+        scene.fog = new THREE.Fog(0x111111, 20, 100);
+
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 35, 45); 
+        camera.lookAt(0, 0, 0);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        document.body.appendChild(renderer.domElement);
+
+        // --- 2. IŞIKLANDIRMA ---
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6); // Modeller için ışığı açtık
+        scene.add(ambientLight);
+
+        const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+        dirLight.position.set(10, 20, 10);
+        dirLight.castShadow = true;
+        dirLight.shadow.mapSize.width = 2048;
+        dirLight.shadow.mapSize.height = 2048;
+        scene.add(dirLight);
+
+        // --- 3. DOKULAR & MODELLER ---
+        const textureLoader = new THREE.TextureLoader();
+        const gltfLoader = new GLTFLoader(); // Model Yükleyicisi
+        
+        const woodTexture = textureLoader.load('textures/wood_table.jpg');
+        const paperTexture = textureLoader.load('textures/paper_map.jpg');
+        const bongomyaLogo = textureLoader.load('textures/bongomya_flag.jpg');
+
+        // --- PARTİKÜL SİSTEMİ (KALPLER VE PATLAMALAR) ---
+        const particles = []; // Tüm partikülleri burada tutacağız
+
+        function createParticleEffect(type, position) {
+            const particleCount = type === 'heart' ? 15 : 30;
+            const geometry = new THREE.SphereGeometry(0.2, 4, 4);
+            const color = type === 'heart' ? 0xff69b4 : 0xffaa00;
+            const material = new THREE.MeshBasicMaterial({ color: color });
+
+            for (let i = 0; i < particleCount; i++) {
+                const mesh = new THREE.Mesh(geometry, material);
+                // Patlama merkezinden başlasın (Dünya koordinatlarına çeviriyoruz)
+                const worldPos = new THREE.Vector3();
+                position.getWorldPosition(worldPos);
+                mesh.position.copy(worldPos);
+                
+                // Rastgele hız ver
+                mesh.userData = {
+                    velocity: new THREE.Vector3(
+                        (Math.random() - 0.5) * 0.5,
+                        (Math.random() * 0.5), // Yukarı doğru
+                        (Math.random() - 0.5) * 0.5
+                    ),
+                    life: 1.0 // Ömür (1 saniye)
+                };
+                
+                scene.add(mesh);
+                particles.push(mesh);
+            }
+        }
+
+        // --- 4. ZEMİN & HARİTA ---
+        const table = new THREE.Mesh(
+            new THREE.PlaneGeometry(100, 100),
+            new THREE.MeshStandardMaterial({ map: woodTexture, color: 0x5c4033, roughness: 0.8 })
+        );
+        table.rotation.x = -Math.PI / 2;
+        table.position.y = -0.5;
+        table.receiveShadow = true;
+        scene.add(table);
+
+        function createLabel(text, yOffset, size = 1) {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = 300; canvas.height = 150;
+            ctx.font = 'Bold 40px Courier New';
+            ctx.fillStyle = 'white'; ctx.textAlign = 'center';
+            ctx.strokeStyle = 'black'; ctx.lineWidth = 5;
+            ctx.strokeText(text, 150, 75); ctx.fillText(text, 150, 75);
+            const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(canvas) }));
+            sprite.scale.set(6 * size, 3 * size, 1);
+            sprite.position.y = yOffset;
+            return sprite;
+        }
+
+        function createCountry(name, textureMap, colorHex, xPos, power) {
+            const geometry = new THREE.BoxGeometry(10, 0.5, 10);
+            const material = new THREE.MeshStandardMaterial({ map: textureMap, color: colorHex, roughness: 1.0 });
+            const country = new THREE.Mesh(geometry, material);
+            country.position.set(xPos, 0, 0);
+            country.castShadow = true; country.receiveShadow = true;
+            
+            const edges = new THREE.EdgesGeometry(geometry);
+            country.add(new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x000000 })));
+            country.add(createLabel(name.toUpperCase(), 3, 1.5));
+            
+            country.userData = { name: name, power: power, isAlly: false };
+            scene.add(country);
+            return country;
+        }
+
+        const saksonya = createCountry("Saksonya", paperTexture, 0x8888ff, -12, 50);
+        const bongomya = createCountry("Bongomya", bongomyaLogo, 0xffffff, 0, 10);
+        const macaristan = createCountry("Macaristan", paperTexture, 0xff8888, 12, 100);
+
+        // --- 5. KARAKTER SİSTEMİ (SİLİNDİRSİZ & SADE VERSİYON) ---
+        // scaleValue: Büyüklük (0.5 gibi)
+        // yOffset: Yükseklik (Yerin dibindeyse buraya pozitif sayı yazacağız)
+        function createCharacter(name, color, parentCountry, offsetZ, offsetX = 0, modelPath = null, scaleValue = 0.5, yOffset = 0) {
+            const group = new THREE.Group();
+            
+            // İsim etiketi
+            group.add(createLabel(name, 3.5, 0.5)); 
+
+            // NOT: Silindir kodlarını sildim. Artık sadece model yüklenecek.
+
+            if (modelPath) {
+                gltfLoader.load(
+                    `models/${modelPath}`, 
+                    (gltf) => {
+                        console.log(`✅ İNDİ: ${modelPath}`);
+                        const model = gltf.scene;
+
+                        // 1. BOYUT (SCALE)
+                        const s = scaleValue ? scaleValue : 0.5;
+                        model.scale.set(s, s, s);
+                        
+                        // 2. YÜKSEKLİK AYARI (Yerin dibinden kurtarmak için)
+                        model.position.y = yOffset; 
+
+                        // Gölge ve Malzeme Ayarları
+                        model.traverse((node) => { 
+                            if (node.isMesh) {
+                                node.castShadow = true;
+                                node.material.side = THREE.DoubleSide; // Görünürlüğü garantile
+                            }
+                        });
+
+                        group.add(model);
+                    },
+                    undefined, 
+                    (error) => { console.error(`❌ HATA: ${modelPath}`, error); }
+                );
+            }
+
+            // Grup Pozisyonu (Harita üzerindeki yeri)
+            group.position.set(offsetX, 0.25, offsetZ);
+            group.userData = { name: name };
+            parentCountry.add(group);
+            return group;
+        }
+
+        // Yardımcı fonksiyon: Sayısal değeri güvenli hale getir
+        function scaleFactor(val) { return val ? val : 0.5; }
+
+        // Karakterleri Oluştur (Model isimleri 'prens.glb' gibi olmalı) "polyhaven ve poly pizza"
+        // Eğer dosyan yoksa otomatik silindir gösterir, bozulmaz.
+        const prens = createCharacter("Prens", 0xffd700, bongomya, 0, 0, 'prens.glb', 0.7, 1.5); 
+        const haserya = createCharacter("Haşerya", 0xff69b4, bongomya, -2, 0, 'haserya.glb'); // Prenses modeli varsa buraya yaz
+        
+        const dukuPhilippe = createCharacter("Dük Philippe", 0x0000aa, saksonya, 0, 0, 'philippe.glb', 0.2, 0);
+        const macarPrensi = createCharacter("Macar Prensi", 0x880000, macaristan, 0, 0, 'macarkrali.glb', 1.25, 0);
+
+
+        // --- 6. OYUN MANTIĞI ---
+        const btnAttack = document.getElementById('btnAttack');
+        const btnMarry = document.getElementById('btnMarry');
+        const infoText = document.getElementById('info');
+        const statsText = document.getElementById('stats');
+
+        btnMarry.addEventListener('click', () => {
+            if (!saksonya.userData.isAlly) {
+                // PARTİKÜL EFEKTİ: KALPLER
+                createParticleEffect('heart', haserya);
+
+                bongomya.remove(haserya);
+                saksonya.add(haserya);
+                haserya.position.set(2, 0.25, 0); 
+                
+                saksonya.userData.isAlly = true;
+                saksonya.material.color.set(0x00ffaa); 
+                
+                infoText.innerText = "SON DAKİKA: Haşerya'yı verdik, Saksonya artık bacanağımız!";
+                infoText.style.color = "#4CAF50";
+                
+                let currentPower = bongomya.userData.power + saksonya.userData.power; 
+                statsText.innerHTML = `Biz+Saksonya: ${currentPower} | Macar: 100 <br>(Hala yetmiyor...)`;
+                
+                setTimeout(() => {
+                    bongomya.userData.power += 50; 
+                    statsText.innerHTML = `Biz+Saksonya: 60 | Macar: 100 <br>👉 PRENS GAZA GELDİ: TOPLAM 110! 👈`;
+                    prens.scale.set(1.2, 1.2, 1.2); 
+                    // Prens'in üstünde de efekt çıksın
+                    createParticleEffect('heart', prens);
+                }, 1500);
+
+                btnMarry.disabled = true;
+                btnMarry.style.background = "#555";
+                btnMarry.innerText = "💍 Haşerya (Artık Saksonyalı)";
+            }
+        });
+
+        btnAttack.addEventListener('click', () => {
+            let totalPower = bongomya.userData.power;
+            if (saksonya.userData.isAlly) totalPower += saksonya.userData.power;
+
+            if (totalPower > macaristan.userData.power) {
+                // PARTİKÜL EFEKTİ: PATLAMA
+                createParticleEffect('explosion', macarPrensi);
+
+                infoText.innerText = "SONUÇ: ZAFER! Macaristan düştü!";
+                infoText.style.color = "#4CAF50";
+                macaristan.material.color.set(0x444444); 
+                macarPrensi.visible = false;
+                prens.scale.set(2, 2, 2);
+                
+            } else {
+                createParticleEffect('explosion', prens); // Biz patladık
+                infoText.innerText = "SONUÇ: HÜSRAN... Macarlar bizi tokatladı.";
+                infoText.style.color = "#f44336";
+                bongomya.material.color.set(0xff0000); 
+                prens.visible = false; 
+            }
+        });
+
+        // --- 7. RENDER DÖNGÜSÜ ---
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true; 
+
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            // Partikül Animasyonu
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const p = particles[i];
+                p.position.add(p.userData.velocity); // Hareket ettir
+                p.userData.life -= 0.02; // Ömrünü azalt
+                p.material.opacity = p.userData.life; // Yavaşça yok olsun
+                p.material.transparent = true;
+                
+                if (p.userData.life <= 0) {
+                    scene.remove(p);
+                    particles.splice(i, 1);
+                }
+            }
+
+            controls.update();
+            renderer.render(scene, camera);
+        }
+        animate();
+        
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+</html> 
