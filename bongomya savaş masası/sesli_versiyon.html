@@ -2,9 +2,36 @@
 <html lang="tr">
 <head>
     <meta charset="UTF-8">
-    <title>Bongomya: Chaos Edition</title>
-    <link rel="stylesheet" href="style.css">
-    
+    <title>Bongomya: Tam Sürüm (Dosyadan Yükleme)</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #1a1a2e; font-family: 'Segoe UI', sans-serif; }
+        
+        #bubble {
+            position: absolute; padding: 10px; background: rgba(255, 255, 255, 0.95);
+            color: #000; border-radius: 5px; display: none; pointer-events: none;
+            font-weight: bold; border: 2px solid #000; transform: translate(-50%, -100%);
+            z-index: 100; white-space: nowrap; box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+        }
+        #ui {
+            position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.85);
+            padding: 15px; color: white; border-radius: 8px; min-width: 260px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.5); border: 1px solid #444;
+        }
+        .stat-box { margin-bottom: 10px; border-bottom: 1px solid #555; padding-bottom: 10px; }
+        .btn {
+            display: block; width: 100%; padding: 10px; margin: 5px 0;
+            border: none; border-radius: 4px; color: white;
+            font-weight: bold; cursor: pointer; transition: 0.2s; font-size: 14px;
+        }
+        .btn:disabled { background-color: #444 !important; cursor: not-allowed; opacity: 0.5; color: #aaa; }
+        .btn-info { background: linear-gradient(to right, #03A9F4, #0288D1); }
+        .btn-purple { background: linear-gradient(to right, #9C27B0, #7B1FA2); }
+        .btn-warning { background: linear-gradient(to right, #FF9800, #F57C00); color: black; }
+        .btn-danger { background: linear-gradient(to right, #F44336, #D32F2F); }
+        .btn-gray { background: #607D8B; }
+        .btn:hover:not(:disabled) { transform: scale(1.02); filter: brightness(1.2); }
+    </style>
+
     <script type="importmap">
       {
         "imports": {
@@ -15,25 +42,24 @@
     </script>
 </head>
 <body>
-    <div id="bubble">Konuşma Balonu</div>
+    <div id="bubble"></div>
+    
     <div id="ui">
-        <h2>⚜️ BONGOMYA ⚜️</h2>
+        <h2 style="margin-top:0; text-align:center; color:#FFD700;">⚜️ BONGOMYA ⚜️</h2>
         <div class="stat-box">
-            <p id="info" style="color: #ffcc00;">Durum: Olaylar Olaylar... Karar anı!</p>
-            <hr style="border-color: #555;">
+            <p id="info" style="color: #ffcc00; min-height:40px; font-size:14px;">Harita bekleniyor...</p>
             <div id="stats">Larg: 0 💰 | Güç: 10 💪</div>
         </div>
         
-        <button id="btnMarry" class="btn btn-info">💍 Haşerya'yı Evlendir (Diplomasi)</button>
-        <button id="btnDayi" class="btn btn-purple">🎲 Kaleş'i Yolla (%50 Şans)</button>
-        <button id="btnMoney" class="btn btn-warning">💰 Eşyaları Sat (+250 Larg)</button>
-        <button id="btnBribe" class="btn btn-warning" style="display:none;">💸 Macarlara Rüşvet Ver (500 Larg)</button>
-        <button id="btnAttack" class="btn btn-danger">⚔️ Topyekün Saldırı</button>
+        <button id="btnMarry" class="btn btn-info" disabled>💍 Haşerya'yı Evlendir</button>
+        <button id="btnDayi" class="btn btn-purple" disabled>🎲 Kaleş'i Yolla</button>
+        <button id="btnMoney" class="btn btn-warning" disabled>💰 Vergi Topla</button>
+        <button id="btnBribe" class="btn btn-warning" style="display:none;">💸 Rüşvet Ver</button>
+        <button id="btnAttack" class="btn btn-danger" disabled>⚔️ Saldır</button>
+        <button id="btnRestart" class="btn btn-gray">🔄 SIFIRLA</button>
         
-        <button id="btnRestart" class="btn btn-gray">🔄 OYUNU SIFIRLA</button>
-
-        <p style="font-size: 11px; color: #aaa; text-align: center; margin-top: 10px;">
-            ℹ️ İPUCU: Karakterlere tıklayarak ne düşündüklerini gör!
+        <p style="font-size: 11px; color: #888; text-align: center; margin-top:10px;">
+            🖱️ Sol: Döndür | Sağ: Kaydır | 📜 Tekerlek: Zoom
         </p>
     </div>
 
@@ -42,488 +68,398 @@
         import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
         import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
+        // --- AYARLAR ---
+        const MAP_FILE = 'tum_ulkeler_tek_parca.geojson'; // Dosya adı
+        
+        // Ülke ID'leri (Senin dosyandaki 'state' numaraları)
+        const STATE_IDS = { BONGOMYA: 12, SAKSONYA: 2, MACARISTAN: 3 };
+
         // --- 1. SAHNE KURULUMU ---
         const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x111111);
-        scene.fog = new THREE.Fog(0x111111, 20, 100);
+        scene.background = new THREE.Color(0x1a1a2e); 
 
-        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.set(0, 35, 45); 
-        camera.lookAt(0, 0, 0);
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 50000);
+        camera.position.set(0, 300, 300); 
 
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.shadowMap.enabled = true;
-        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         document.body.appendChild(renderer.domElement);
 
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
-        scene.add(ambientLight);
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+
+        // Işıklar
+        scene.add(new THREE.AmbientLight(0xffffff, 0.8));
         const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
-        dirLight.position.set(10, 20, 10);
+        dirLight.position.set(100, 200, 100);
         dirLight.castShadow = true;
-        dirLight.shadow.mapSize.width = 2048; 
-        dirLight.shadow.mapSize.height = 2048; 
         scene.add(dirLight);
 
-        // --- 2. VARLIKLAR ---
-        const textureLoader = new THREE.TextureLoader();
-        const gltfLoader = new GLTFLoader();
+        // --- 2. SES SİSTEMİ ---
+        const listener = new THREE.AudioListener();
+        camera.add(listener);
+        const audioLoader = new THREE.AudioLoader();
+
+        function playSound(filename, volume = 0.5) {
+            const sound = new THREE.Audio(listener);
+            audioLoader.load(`audio/${filename}`, function(buffer) {
+                sound.setBuffer(buffer);
+                sound.setVolume(volume);
+                sound.play();
+            }, undefined, function() {
+                console.warn("Ses dosyası bulunamadı: " + filename);
+            });
+        }
         
-        const woodTexture = textureLoader.load('textures/wood_table.jpg');
-        const paperTexture = textureLoader.load('textures/paper_map.jpg');
-        const bongomyaLogo = textureLoader.load('textures/bongomya_flag.jpg');
+        // Tarayıcı kilidini açmak için ilk tıkla sesi başlat
+        window.addEventListener('click', () => {
+            if (listener.context.state === 'suspended') listener.context.resume();
+        }, { once: true });
 
-        // Partikül Sistemi
-        const particles = [];
-        function createParticleEffect(type, position) {
-            const particleCount = 20;
-            const geometry = new THREE.SphereGeometry(0.2, 4, 4);
-            const color = type === 'heart' ? 0xff69b4 : (type === 'money' ? 0xffd700 : 0xff4500);
-            const material = new THREE.MeshBasicMaterial({ color: color });
+        // --- 3. HARİTA YÜKLEME VE İŞLEME ---
+        const mapGroup = new THREE.Group();
+        scene.add(mapGroup);
+        
+        // Ülke Parçalarını Sakla
+        const countryMeshes = { "Bongomya": [], "Saksonya": [], "Macaristan": [] };
+        const interactableObjects = [];
 
-            for (let i = 0; i < particleCount; i++) {
-                const mesh = new THREE.Mesh(geometry, material);
-                const worldPos = new THREE.Vector3();
-                position.getWorldPosition(worldPos);
-                mesh.position.copy(worldPos);
-                
-                mesh.userData = {
-                    velocity: new THREE.Vector3((Math.random()-0.5)*0.5, Math.random()*0.5, (Math.random()-0.5)*0.5),
-                    life: 1.0
-                };
-                scene.add(mesh);
-                particles.push(mesh);
-            }
+        const fileLoader = new THREE.FileLoader();
+
+        function loadMap() {
+            document.getElementById('info').innerText = "Dosya okunuyor...";
+            
+            fileLoader.load(MAP_FILE, (data) => {
+                try {
+                    const json = JSON.parse(data);
+                    
+                    json.features.forEach((feature) => {
+                        const stateID = feature.properties.state;
+                        const coords = feature.geometry.coordinates;
+                        const type = feature.geometry.type;
+
+                        let color = 0x555555; 
+                        let name = "Tarafsız Bölge";
+                        let targetList = null;
+
+                        if (stateID === STATE_IDS.BONGOMYA) {
+                            color = 0xffffff; name = "Bongomya"; targetList = countryMeshes["Bongomya"];
+                        } else if (stateID === STATE_IDS.SAKSONYA) {
+                            color = 0x8888ff; name = "Saksonya"; targetList = countryMeshes["Saksonya"];
+                        } else if (stateID === STATE_IDS.MACARISTAN) {
+                            color = 0xff8888; name = "Macaristan"; targetList = countryMeshes["Macaristan"];
+                        }
+
+                        const shapes = [];
+                        if (type === "Polygon") shapes.push(createShape(coords[0]));
+                        else if (type === "MultiPolygon") coords.forEach(poly => shapes.push(createShape(poly[0])));
+
+                        if (shapes.length > 0) {
+                            const geometry = new THREE.ShapeGeometry(shapes);
+                            const material = new THREE.MeshStandardMaterial({ color: color, side: THREE.DoubleSide });
+                            const mesh = new THREE.Mesh(geometry, material);
+                            
+                            mesh.rotation.x = -Math.PI / 2;
+                            mesh.userData = { name: name, type: 'country', id: stateID };
+                            mesh.receiveShadow = true;
+                            
+                            // Siyah Kenarlık
+                            const edges = new THREE.EdgesGeometry(geometry);
+                            const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x000000 }));
+                            line.position.z = 0.05; 
+                            mesh.add(line);
+
+                            mapGroup.add(mesh);
+                            interactableObjects.push(mesh);
+                            if (targetList) targetList.push(mesh);
+                        }
+                    });
+
+                    // HARİTAYI ORTALA VE ÖLÇEKLE (SİYAH EKRAN ÇÖZÜMÜ)
+                    normalizeMap();
+
+                } catch (e) {
+                    console.error(e);
+                    document.getElementById('info').innerText = "JSON Hatası!";
+                }
+            }, undefined, (err) => {
+                document.getElementById('info').innerText = "map.geojson bulunamadı!";
+                document.getElementById('info').style.color = "red";
+            });
         }
 
-        // Zemin
-        const table = new THREE.Mesh(new THREE.PlaneGeometry(100, 100), new THREE.MeshStandardMaterial({ map: woodTexture, color: 0x5c4033 }));
-        table.rotation.x = -Math.PI / 2; table.position.y = -0.5; table.receiveShadow = true;
-        scene.add(table);
+        function createShape(points) {
+            const shape = new THREE.Shape();
+            points.forEach((pt, i) => {
+                const x = pt[0];
+                const y = pt[1] * -1; 
+                if (i === 0) shape.moveTo(x, y);
+                else shape.lineTo(x, y);
+            });
+            return shape;
+        }
 
-        // Etiket
-        function createLabel(text, yOffset, size = 1) {
+        // Haritayı sahnenin ortasına (0,0) getirir ve boyutu ayarlar
+        function normalizeMap() {
+            if(mapGroup.children.length === 0) return;
+
+            const box = new THREE.Box3().setFromObject(mapGroup);
+            const size = box.getSize(new THREE.Vector3());
+            const center = box.getCenter(new THREE.Vector3());
+
+            // Ortala
+            mapGroup.position.x = -center.x;
+            mapGroup.position.z = -center.z;
+            
+            // Ölçekle (Genişliği 300 birim yap)
+            const maxDim = Math.max(size.x, size.y);
+            const scaleFactor = 300 / maxDim; 
+            mapGroup.scale.set(scaleFactor, scaleFactor, scaleFactor);
+
+            // Kamerayı ayarla
+            camera.position.set(0, 200, 200);
+            camera.lookAt(0, 0, 0);
+            controls.target.set(0, 0, 0);
+            
+            startGame();
+        }
+
+        // Ülke sınırlarını hesapla (world koordinatlarında)
+        function getCountryBounds(countryName) {
+            if(!countryMeshes[countryName] || countryMeshes[countryName].length === 0) return null;
+            
+            const box = new THREE.Box3();
+            countryMeshes[countryName].forEach(mesh => {
+                mapGroup.updateMatrixWorld(true);
+                mesh.updateMatrixWorld(true);
+                const meshBox = new THREE.Box3().setFromObject(mesh);
+                box.union(meshBox);
+            });
+            
+            const center = box.getCenter(new THREE.Vector3());
+            const size = box.getSize(new THREE.Vector3());
+            
+            return { center, size, min: box.min, max: box.max };
+        }
+
+        // --- 4. KARAKTER YÖNETİMİ ---
+        const gltfLoader = new GLTFLoader();
+        let prens, haserya, kalesh;
+
+        function createCharacter(name, color, x, z, modelName, scale = 5) {
+            const group = new THREE.Group();
+            
+            // İsim Etiketi
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d');
             canvas.width = 300; canvas.height = 150;
-            ctx.font = 'Bold 40px Courier New';
+            ctx.font = 'Bold 40px Arial';
             ctx.fillStyle = 'white'; ctx.textAlign = 'center';
-            ctx.strokeStyle = 'black'; ctx.lineWidth = 5;
-            ctx.strokeText(text, 150, 75); ctx.fillText(text, 150, 75);
+            ctx.strokeStyle = 'black'; ctx.lineWidth = 4;
+            ctx.strokeText(name, 150, 75); ctx.fillText(name, 150, 75);
             const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(canvas) }));
-            sprite.scale.set(6 * size, 3 * size, 1);
-            sprite.position.y = yOffset;
-            return sprite;
-        }
+            sprite.scale.set(20, 10, 1);
+            sprite.position.y = 20; 
+            group.add(sprite);
 
-        // Ülke Oluşturma
-        function createCountry(name, textureMap, colorHex, xPos) {
-            const geometry = new THREE.BoxGeometry(10, 0.5, 10);
-            const material = new THREE.MeshStandardMaterial({ map: textureMap, color: colorHex, roughness: 1.0 });
-            const country = new THREE.Mesh(geometry, material);
-            country.position.set(xPos, 0, 0);
-            country.castShadow = true; country.receiveShadow = true;
-            country.add(new THREE.LineSegments(new THREE.EdgesGeometry(geometry), new THREE.LineBasicMaterial({ color: 0x000000 })));
-            country.add(createLabel(name.toUpperCase(), 3, 1.5));
-            country.userData = { name: name, type: 'country' };
-            scene.add(country);
-            return country;
-        }
+            // Model Yükleme
+            gltfLoader.load(`models/${modelName}`, (gltf) => {
+                const model = gltf.scene;
+                model.scale.set(scale, scale, scale);
+                model.traverse(n => { if(n.isMesh) n.castShadow = true; });
+                group.add(model);
+            }, undefined, (error) => {
+                // Model yoksa Yedek Şekil
+                console.warn(`${modelName} yok, yedek kullanılıyor.`);
+                const backupScale = scale / 2.5;
+                const geo = new THREE.CylinderGeometry(backupScale, backupScale, backupScale * 4, 16);
+                const mat = new THREE.MeshStandardMaterial({ color: color });
+                const mesh = new THREE.Mesh(geo, mat);
+                mesh.position.y = backupScale * 2;
+                group.add(mesh);
+            });
 
-        const saksonya = createCountry("Saksonya", paperTexture, 0x8888ff, -12);
-        const bongomya = createCountry("Bongomya", bongomyaLogo, 0xffffff, 0);
-        const macaristan = createCountry("Macaristan", paperTexture, 0xff8888, 12);
-
-        // Karakter Oluşturma
-        const interactableObjects = []; 
-
-        function createCharacter(name, color, parentCountry, offsetZ, offsetX = 0, modelPath = null, scaleValue = 0.5, yOffset = 0) {
-            const group = new THREE.Group();
-            group.add(createLabel(name, 3.5, 0.5)); 
-
-            if (modelPath) {
-                gltfLoader.load(`models/${modelPath}`, (gltf) => {
-                    const model = gltf.scene;
-                    const s = scaleValue ? scaleValue : 0.5;
-                    model.scale.set(s, s, s);
-                    model.position.y = yOffset; 
-                    model.traverse((node) => { 
-                        if (node.isMesh) {
-                            node.castShadow = true; node.material.side = THREE.DoubleSide;
-                            node.userData = { parentGroup: group };
-                        }
-                    });
-                    group.add(model);
-                });
-            } else {
-                const cyl = new THREE.Mesh(new THREE.CylinderGeometry(0.3,0.5,1.5), new THREE.MeshStandardMaterial({color:color}));
-                cyl.position.y = 0.75;
-                cyl.userData = { parentGroup: group };
-                group.add(cyl);
-            }
-
-            // Başlangıç pozisyonlarını kaydedelim (Restart için)
-            group.userData = { 
-                name: name, 
-                type: 'character',
-                startParent: parentCountry,
-                startX: offsetX,
-                startZ: offsetZ
-            };
+            group.position.set(x, 2, z);
+            group.userData = { name: name, type: 'character' };
             
-            group.position.set(offsetX, 0.25, offsetZ);
-            parentCountry.add(group);
-            
-            interactableObjects.push(group); 
+            scene.add(group);
+            interactableObjects.push(group);
             return group;
         }
 
-        // --- KARAKTERLER ---
-        const prens = createCharacter("Prens", 0xffd700, bongomya, 0, 0, 'prens.glb', 0.7, 1.5); 
-        const haserya = createCharacter("Haşerya", 0xff69b4, bongomya, -2, 0, 'haserya.glb');
-        const dukuPhilippe = createCharacter("Dük Philippe", 0x0000aa, saksonya, 0, 0, 'philippe.glb', 0.2, 0);
-        const macarPrensi = createCharacter("Macar Prensi", 0x880000, macaristan, 0, 0, 'macarkrali.glb', 1.25, 0);
-        const kalesh = createCharacter("Kaleş", 0x555555, bongomya, 2, 0, 'kalesh.glb', 1.25, 0);
+        function startGame() {
+            document.getElementById('info').innerText = "Oyun Hazır!";
+            document.getElementById('info').style.color = "#4CAF50";
+            document.querySelectorAll('button').forEach(btn => btn.disabled = false);
 
-        // --- 3. RAYCASTING ---
+            // Ülke sınırlarını al
+            const bongomyaBounds = getCountryBounds("Bongomya");
+            const saksonyaBounds = getCountryBounds("Saksonya");
+            const macaristanBounds = getCountryBounds("Macaristan");
+            
+            // Karakter Pozisyonları
+            if(bongomyaBounds) {
+                // Prens Bongomya'nın merkezinde (büyük)
+                prens = createCharacter("Prens", 0xffd700, 
+                    bongomyaBounds.center.x, 
+                    bongomyaBounds.center.z, 
+                    'warrior.glb', 7);
+                
+                // Haşerya Bongomya'nın içinde (merkezden biraz sağda)
+                haserya = createCharacter("Haşerya", 0xff69b4, 
+                    bongomyaBounds.center.x + bongomyaBounds.size.x * 0.2, 
+                    bongomyaBounds.center.z, 
+                    'haserya.glb');
+                
+                // Kaleş Bongomya'nın içinde (merkezden biraz solda)
+                kalesh = createCharacter("Kaleş", 0x555555, 
+                    bongomyaBounds.center.x - bongomyaBounds.size.x * 0.2, 
+                    bongomyaBounds.center.z, 
+                    'kalesh.glb');
+            } else {
+                // Fallback
+                prens = createCharacter("Prens", 0xffd700, 0, 0, 'warrior.glb', 7);
+                haserya = createCharacter("Haşerya", 0xff69b4, -20, 10, 'haserya.glb');
+                kalesh = createCharacter("Kaleş", 0x555555, 20, 10, 'kalesh.glb');
+            }
+            
+            if(macaristanBounds) {
+                // Macar Kralı Macaristan'ın merkezinde
+                createCharacter("Macar Kralı", 0x880000, 
+                    macaristanBounds.center.x, 
+                    macaristanBounds.center.z, 
+                    'macarkrali.glb');
+            } else {
+                // Fallback
+                createCharacter("Macar Kralı", 0x880000, 60, 0, 'macarkrali.glb');
+            }
+            
+            if(saksonyaBounds) {
+                // Dük Philippe Saksonya'nın merkezinde (küçük)
+                createCharacter("Dük Philippe", 0x0000aa, 
+                    saksonyaBounds.center.x, 
+                    saksonyaBounds.center.z, 
+                    'prince_charming.glb', 3.5);
+            } else {
+                // Fallback
+                createCharacter("Dük Philippe", 0x0000aa, -60, 0, 'prince_charming.glb', 3.5);
+            }
+        }
+
+        // --- 5. OYUN BUTONLARI ---
+        let gameState = { larg: 0, power: 10, ally: false };
+        const infoText = document.getElementById('info');
+        const statsText = document.getElementById('stats');
+
+        function setCountryColor(name, hex) {
+            if(countryMeshes[name]) {
+                countryMeshes[name].forEach(m => m.material.color.setHex(hex));
+            }
+        }
+        function updateUI() {
+            statsText.innerText = `Larg: ${gameState.larg} 💰 | Güç: ${gameState.power} 💪`;
+            document.getElementById('btnBribe').style.display = gameState.larg >= 500 ? "block" : "none";
+        }
+
+        document.getElementById('btnMoney').addEventListener('click', () => {
+            playSound('coin.mp3');
+            gameState.larg += 250;
+            infoText.innerText = "Vergiler toplandı!";
+            updateUI();
+        });
+        document.getElementById('btnMarry').addEventListener('click', (e) => {
+            if (!gameState.ally) {
+                playSound('success.mp3');
+                gameState.ally = true;
+                haserya.position.set(-60, 2, 0); 
+                setCountryColor("Saksonya", 0x00ffaa); 
+                infoText.innerText = "Düğün yapıldı!";
+                e.target.disabled = true;
+                updateUI();
+            }
+        });
+        document.getElementById('btnDayi').addEventListener('click', (e) => {
+            infoText.innerText = "Kaleş yola çıktı...";
+            kalesh.userData.isWalking = true;
+            e.target.disabled = true;
+        });
+        document.getElementById('btnAttack').addEventListener('click', () => {
+            playSound('explosion.mp3');
+            if (gameState.power >= 100) {
+                infoText.innerText = "ZAFER! Fethedildi!";
+                setCountryColor("Macaristan", 0x444444); 
+            } else {
+                infoText.innerText = "HÜSRAN... Kaybettik.";
+                setCountryColor("Bongomya", 0xff0000);
+            }
+        });
+        document.getElementById('btnBribe').addEventListener('click', () => {
+            playSound('coin.mp3');
+            gameState.larg -= 500;
+            infoText.innerText = "Rüşvet verildi.";
+            setCountryColor("Macaristan", 0x00ff00);
+            updateUI();
+        });
+        document.getElementById('btnRestart').addEventListener('click', () => location.reload());
+
+        // --- 6. RENDER LOOP ---
         const raycaster = new THREE.Raycaster();
         const mouse = new THREE.Vector2();
         const bubble = document.getElementById('bubble');
 
         window.addEventListener('pointerdown', (event) => {
+            if(event.target.closest('#ui')) return;
             mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
             mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
             raycaster.setFromCamera(mouse, camera);
-            const intersects = raycaster.intersectObjects(scene.children, true);
+            const intersects = raycaster.intersectObjects(interactableObjects);
 
             if (intersects.length > 0) {
-                //playSound('click.mp3', 0.4); // Tıklama sesi
-                let object = intersects[0].object;
-                if (object.userData.parentGroup) object = object.userData.parentGroup;
-                else if (object.parent && object.parent.userData.type === 'character') object = object.parent;
+                let obj = intersects[0].object;
+                while(obj.parent && obj.parent.type !== 'Scene') obj = obj.parent;
 
-                if (object.userData.type === 'character') {
-                    showBubble(object.userData.name, event.clientX, event.clientY);
-                } else if (object.userData.type === 'country') {
-                    showBubble(object.userData.name + " Toprakları", event.clientX, event.clientY);
-                } else {
-                    bubble.style.display = 'none';
+                if (obj.userData.name) {
+                    bubble.innerText = obj.userData.name;
+                    bubble.style.left = event.clientX + 'px';
+                    bubble.style.top = event.clientY + 'px';
+                    bubble.style.display = 'block';
+                    
+                    // Parlama efekti (sadece ülkeler için)
+                    const mesh = intersects[0].object;
+                    if(mesh.material && mesh.userData.type === 'country') {
+                        const old = mesh.material.color.getHex();
+                        mesh.material.color.setHex(0xFFFF00);
+                        setTimeout(() => mesh.material.color.setHex(old), 200);
+                    }
+                    setTimeout(() => bubble.style.display = 'none', 2000);
                 }
             }
         });
-
-        const quotes = {
-            "Prens": ["Acıktım...", "Larg nerede?", "Olaylar olaylar..."],
-            "Haşerya": ["Saksonya güzel diyorlar...", "Abim yine ne yapıyor?"],
-            "Dük Philippe": ["Saksonya'nın onuru!", "Bongomya nerede?","Her şey aşk içim!!"],
-            "Macar Prensi": ["SAVAŞ!", "Larg verin gideyim.", "Gücüm: 100"],
-            "Kaleş": ["Yeğenim halledeceğim...", "Bir kumarım var...", "Rahat ol sen."],
-            "Bongomya": "Güzel ve yalnız ülkemiz...",
-            "Saksonya": "Müttefik olabilirler mi?",
-            "Macaristan": "Çok tehlikeli bölge!"
-        };
-
-        function showBubble(name, x, y) {
-            let text = name;
-            if (quotes[name]) {
-                const list = Array.isArray(quotes[name]) ? quotes[name] : [quotes[name]];
-                text = list[Math.floor(Math.random() * list.length)];
-            }
-            bubble.innerText = `${name}: "${text}"`;
-            bubble.style.left = x + 'px';
-            bubble.style.top = (y - 20) + 'px';
-            bubble.style.display = 'block';
-            setTimeout(() => { bubble.style.display = 'none'; }, 3000);
-        }
-
-        // --- 4. OYUN MANTIĞI & UI ---
-        const btnMarry = document.getElementById('btnMarry');
-        const btnDayi = document.getElementById('btnDayi');
-        const btnMoney = document.getElementById('btnMoney');
-        const btnBribe = document.getElementById('btnBribe');
-        const btnAttack = document.getElementById('btnAttack');
-        const btnRestart = document.getElementById('btnRestart');
-        const infoText = document.getElementById('info');
-        const statsText = document.getElementById('stats');
-
-        let gameState = {
-            larg: 0,
-            power: 10,
-            ally: false
-        };
-
-        function updateUI() {
-            statsText.innerText = `Larg: ${gameState.larg} 💰 | Güç: ${gameState.power} 💪`;
-            btnBribe.style.display = gameState.larg >= 500 ? "block" : "none";
-        }
-
-        // 1. PARA KAZANMA
-        btnMoney.addEventListener('click', () => {
-            playSound('coin.mp3', 0.6);
-            gameState.larg += 250;
-            createParticleEffect('money', prens);
-            infoText.innerText = "Prens saraydaki gümüşleri sattı! (+250 Larg)";
-            infoText.style.color = "#FFD700";
-            updateUI();
-        });
-
-        // 2. EVLİLİK
-        btnMarry.addEventListener('click', () => {
-            if (!gameState.ally) {
-                playSound('success.mp3', 0.7);
-                createParticleEffect('heart', haserya);
-                // Scene Graph: Haşerya taraf değiştiriyor
-                bongomya.remove(haserya);
-                saksonya.add(haserya);
-                haserya.position.set(2, 0.25, 0); 
-                
-                gameState.ally = true;
-                saksonya.material.color.set(0x00ffaa); 
-                infoText.innerText = "Haşerya gitti, Saksonya artık dostumuz!";
-                infoText.style.color = "#4CAF50";
-                
-                setTimeout(() => {
-                    gameState.power = 110; 
-                    infoText.innerText += " (Prens gaza geldi!)";
-                    prens.scale.multiplyScalar(1.2);
-                    updateUI();
-                }, 1000);
-                
-                btnMarry.disabled = true;
-                btnMarry.style.background = "#555";
-                updateUI();
-            }
-        });
-
-        // 3. KALEŞ (AMCA) GÖNDERME - ANİMASYONLU
-        btnDayi.addEventListener('click', () => {
-            playSound('explosion.mp3', 0.8);
-            infoText.innerText = "Kaleş yola çıktı... Macaristan'a gidiyor...";
-            btnDayi.disabled = true;
-            
-            // Yürüme bayrağını aç
-            kalesh.userData.isWalking = true;
-        });
-
-        // 4. RÜŞVET
-        btnBribe.addEventListener('click', () => {
-            if (gameState.larg >= 500) {
-                playSound('coin.mp3', 1.0);
-                gameState.larg -= 500;
-                infoText.innerText = "Macarlar parayı aldı ve çekildi! (ZAFER)";
-                infoText.style.color = "#FFD700";
-                createParticleEffect('money', macarPrensi);
-                macaristan.material.color.set(0x00ff00); 
-                macarPrensi.visible = false; 
-                updateUI();
-            }
-        });
-
-        // 5. SALDIRI
-        btnAttack.addEventListener('click', () => {
-            if (gameState.power >= 100) {
-                playSound('explosion.mp3', 0.8);
-                createParticleEffect('explosion', macarPrensi);
-                infoText.innerText = "ZAFER! Bongomya ordusu kazandı!";
-                infoText.style.color = "#4CAF50";
-                macaristan.material.color.set(0x444444); 
-                macarPrensi.visible = false;
-                prens.scale.set(1.4, 1.4, 1.4);
-            } else {
-                playSound('explosion.mp3', 0.8);
-                createParticleEffect('explosion', prens);
-                infoText.innerText = "HÜSRAN... Gücümüz yetmedi.";
-                infoText.style.color = "#f44336";
-                bongomya.material.color.set(0xff0000); 
-                prens.visible = false; 
-            }
-        });
-
-        // 6. RESTART (SIFIRLAMA)
-        btnRestart.addEventListener('click', () => {
-            // Değişkenleri sıfırla
-            gameState = { larg: 0, power: 10, ally: false };
-            
-            // Renkleri sıfırla
-            bongomya.material.color.set(0xffffff);
-            saksonya.material.color.set(0x8888ff);
-            macaristan.material.color.set(0xff8888);
-
-            // Butonları sıfırla
-            btnMarry.disabled = false; btnMarry.style.background = "linear-gradient(to bottom, #1976D2, #0D47A1)";
-            btnDayi.disabled = false;
-            
-            // Metinleri sıfırla
-            infoText.innerText = "Durum: Olaylar Olaylar... Yeniden Başladık.";
-            infoText.style.color = "#ffcc00";
-            updateUI();
-
-            // Karakterleri Sıfırla (Scene Graph ve Pozisyon)
-            [prens, haserya, kalesh, macarPrensi].forEach(char => {
-                char.visible = true; // Ölenler dirilsin
-                char.scale.set(1,1,1); // Büyüyenler küçülsün
-                // Eğer model yüklüyse tekrar scale ayarla (basit reset için 1 yaptık ama gltf scale'i önemli)
-                // Daha düzgün olması için manuel scale girmek lazım ama şimdilik visible yeterli.
-                
-                // Parent Reset (Özellikle Haşerya için)
-                if (char.parent !== char.userData.startParent) {
-                    char.parent.remove(char);
-                    char.userData.startParent.add(char);
-                }
-                
-                // Pozisyon Reset
-                char.position.set(char.userData.startX, 0.25, char.userData.startZ);
-            });
-            
-            // Kaleş'in özel ayarları
-            kalesh.userData.isWalking = false;
-            
-            // Prens'in özel scale'ini geri getir (Manuel)
-            if(prens.children.length > 1) prens.children[1].scale.set(0.7,0.7,0.7); 
-
-        });
-
-
-        // --- 5. RENDER DÖNGÜSÜ ---
-        const controls = new OrbitControls(camera, renderer.domElement);
-        controls.enableDamping = true; 
 
         function animate() {
             requestAnimationFrame(animate);
-            
-            // KALEŞ YÜRÜME MANTIĞI (ANIMATION LOOP)
-            // Macaristan x=12'de. Kaleş x=2'den başlıyor.
-            if (kalesh.userData.isWalking) {
-                kalesh.position.x += 0.05; // Sağa doğru yürü
-                // Yürürken zıplasın (Visual Feedback)
-                kalesh.position.y = Math.abs(Math.sin(Date.now() * 0.01)) * 0.5;
-
-                // Hedefe vardı mı? (Macaristan sınırına yaklaşınca)
-                if (kalesh.position.x >= 10) {
-                    kalesh.userData.isWalking = false; // Dur
-                    kalesh.position.y = 0.25; // Yere bas
-
-                    // Olay Sonucunu Hesapla
-                    const sans = Math.random();
-                    if (sans > 0.5) {
-                        infoText.innerText = "İNANILMAZ! Kaleş Macar Kralını zehirledi! (ZAFER)";
-                        infoText.style.color = "#4CAF50";
-                        macaristan.material.color.set(0x444444);
-                        macarPrensi.visible = false;
-                        createParticleEffect('explosion', macarPrensi);
-                    } else {
-                        infoText.innerText = "EYVAH! Kaleş yakalandı. Savaş başladı!";
-                        infoText.style.color = "#f44336";
-                        macaristan.material.color.set(0xff0000);
-                        kalesh.visible = false; // Kaleş öldü
-                        createParticleEffect('explosion', kalesh);
-                    }
-                }
-            }
-
-            // Partiküller
-            for (let i = particles.length - 1; i >= 0; i--) {
-                const p = particles[i];
-                p.position.add(p.userData.velocity);
-                p.userData.life -= 0.02; 
-                p.material.opacity = p.userData.life; 
-                p.material.transparent = true;
-                if (p.userData.life <= 0) {
-                    scene.remove(p);
-                    particles.splice(i, 1);
-                }
-            }
-
             controls.update();
+
+            if (kalesh && kalesh.userData.isWalking) {
+                kalesh.position.x += 0.5; 
+                kalesh.position.y = 2 + Math.abs(Math.sin(Date.now() * 0.01)) * 3;
+                if(kalesh.position.x > 50) {
+                    kalesh.userData.isWalking = false;
+                    kalesh.position.y = 2;
+                    infoText.innerText = Math.random() > 0.5 ? "Kaleş başardı!" : "Kaleş yakalandı!";
+                }
+            }
             renderer.render(scene, camera);
         }
-        animate();
         
+        loadMap(); // Başlat
+        animate();
+
         window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
-        });
-
-        // --- SES SİSTEMİ (AUDIO MANAGER) --- pixabaydan aldım sesleri
-        // Kameraya bir kulaklık (Listener) takıyoruz
-        const listener = new THREE.AudioListener();
-        camera.add(listener);
-
-        const audioLoader = new THREE.AudioLoader();
-        let backgroundMusic; // Müziği durdur/başlat yapmak istersek diye değişkene atadık
-
-        // Genel Ses Çalma Fonksiyonu
-        function playSound(filename, volume = 0.5, loop = false, isMusic = false) {
-            const sound = new THREE.Audio(listener);
-            
-            audioLoader.load(`audio/${filename}`, function(buffer) {
-                sound.setBuffer(buffer);
-                sound.setLoop(loop);
-                sound.setVolume(volume);
-                sound.play();
-                
-                if (isMusic) {
-                    backgroundMusic = sound;
-                }
-            },
-            // Yükleme sırasında
-            undefined,
-            // Hata olursa (Dosya yoksa oyun çökmesin diye)
-            function(err) {
-                console.warn(`Ses dosyası bulunamadı: ${filename}. Oyun sessiz devam ediyor.`);
-            });
-        }
-
-        // İlk tıklamada müziği başlat (Tarayıcılar otomatik ses çalmayı engeller)
-        let musicStarted = false;
-        function startMusicOnInteraction() {
-            if (!musicStarted) {
-                playSound('bg_music.mp3', 0.3, true, true); // %30 sesle, döngüde çal
-                musicStarted = true;
-            }
-        }
-        window.addEventListener('click', startMusicOnInteraction);
-
-        // --- UI SÜRÜKLEME SİSTEMİ (DRAG & DROP) ---
-        const uiPanel = document.getElementById('ui');
-        const uiHeader = uiPanel.querySelector('h2'); // Tutamaç olarak başlığı kullanıyoruz
-
-        let isDragging = false;
-        let dragOffsetX = 0;
-        let dragOffsetY = 0;
-
-        // 1. Tutmaya Başla
-        uiHeader.addEventListener('mousedown', (e) => {
-            isDragging = true;
-            // Mouse'un panelin sol üst köşesine olan uzaklığını kaydet
-            dragOffsetX = e.clientX - uiPanel.offsetLeft;
-            dragOffsetY = e.clientY - uiPanel.offsetTop;
-            
-            uiHeader.style.cursor = 'grabbing'; // İmleci sıkılı yumruk yap
-        });
-
-        // 2. Sürükle (Tüm pencerede dinliyoruz ki hızlı çekince kaçmasın)
-        window.addEventListener('mousemove', (e) => {
-            if (isDragging) {
-                // Yeni pozisyonu hesapla
-                let newX = e.clientX - dragOffsetX;
-                let newY = e.clientY - dragOffsetY;
-
-                // Ekran dışına çıkmayı engelle (Opsiyonel Güvenlik)
-                // newX = Math.max(0, Math.min(window.innerWidth - uiPanel.offsetWidth, newX));
-                // newY = Math.max(0, Math.min(window.innerHeight - uiPanel.offsetHeight, newY));
-
-                uiPanel.style.left = `${newX}px`;
-                uiPanel.style.top = `${newY}px`;
-            }
-        });
-
-        // 3. Bırak
-        window.addEventListener('mouseup', () => {
-            isDragging = false;
-            uiHeader.style.cursor = 'move'; // İmleci normale döndür
         });
     </script>
 </body>
